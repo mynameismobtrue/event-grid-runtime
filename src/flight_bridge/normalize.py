@@ -76,7 +76,8 @@ def normalize_itinerary(itinerary: dict[str, Any], query: dict[str, str]) -> dic
             "requires_self_transfer": itinerary.get("requires_self_transfer"),
             "protected_self_transfer": itinerary.get("protected_self_transfer"),
             "airport_change": itinerary.get("airport_change"), "separate_tickets": itinerary.get("separate_tickets"),
-            "multiple_booking_required": False, "price": {"amount": price.get("amount"), "currency": price.get("currency"), "status": price.get("status")},
+            "multiple_booking_required": itinerary.get("multiple_booking_required"),
+            "price": {"amount": price.get("amount"), "currency": price.get("currency"), "status": price.get("status")},
             "query_id": query["query_id"]}
 
 
