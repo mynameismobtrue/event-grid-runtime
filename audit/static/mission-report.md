@@ -11,8 +11,8 @@
 | GitHub read | Available | Legacy repository audits |
 | GitHub remote write | Available conditionally | File/branch/PR tools exist, guarded in code |
 | GitHub create repository | Completed by human | `mynameismobtrue/event-grid-runtime` is now public |
-| GitHub Actions secret write | Unavailable | No secret-management action exposed |
-| CI trigger / workflow dispatch | Unavailable | No dispatch action exposed |
+| GitHub Actions secret write | Completed by human | `IGNAV_API_KEY` was added without being shared in chat |
+| CI trigger / workflow dispatch | Completed by human | Manual health run `32679355218` succeeded |
 
 ## Legacy read-only evidence
 
@@ -32,7 +32,6 @@
 
 ## Production blockers
 
-1. `HUMAN_ADD_SECRET`: no safe GitHub Actions-secret write capability is exposed.
-2. `REMOTE_CI`: the connected GitHub integration has no workflow-dispatch capability.
-3. `LIVE_PROVIDER_VALIDATION`: no authorized secret-backed runtime or dispatch capability exists.
-4. `PRODUCTION_GATE`: live-dependent inputs remain UNKNOWN; schedule and alerts are deliberately disabled.
+1. `FULL_QUERY_GRID`: the normalized 12-query fetch pipeline is not yet enabled.
+2. `REAL_SCHEMA_AUDIT` / operating-carrier policy / revalidation: require a complete sanitized live cycle.
+3. `PRODUCTION_GATE`: live-dependent inputs remain UNKNOWN; schedule and alerts are deliberately disabled.
