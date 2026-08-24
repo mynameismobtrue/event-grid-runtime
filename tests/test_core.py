@@ -49,6 +49,9 @@ class CoreTests(unittest.TestCase):
         result=IgnavClient('x',lambda *_:(401,b'{"detail":"denied"}')).health_check(); self.assertEqual('AUTH_REQUIRED',result.status); self.assertEqual(401,result.http_status)
     def test_ignav_health_accepts_documented_airport_list(self):
         result=IgnavClient('x',lambda *_:(200,b'[{"iata":"GRU"}]')).health_check(); self.assertEqual('COMPLETE',result.status); self.assertEqual(200,result.http_status)
+    def test_ignav_booking_links_uses_opaque_id_only(self):
+        seen=[]
+        result=IgnavClient('x',lambda method,path,body:(seen.append((method,path,body)) or (200,b'{}'))).booking_links('opaque'); self.assertEqual('COMPLETE',result.status); self.assertEqual(('POST','/fares/booking-links',{'ignav_id':'opaque'}),seen[0])
     def test_normalization_keeps_operating_carrier_missing_fail_closed(self):
         raw={'ignav_id':'x','cabin_class':'economy','requires_self_transfer':False,'price':{'amount':4400,'currency':'BRL','status':'verified'},'legs':[{'carrier':'TAP','duration_minutes':600,'segments':[{'departure_airport':'GRU','arrival_airport':'LIS','departure_time_utc':'2026-10-27T12:00:00Z','arrival_time_utc':'2026-10-27T20:00:00Z','marketing_carrier_code':'TP'}]},{'carrier':'TAP','duration_minutes':600,'segments':[{'departure_airport':'LIS','arrival_airport':'GRU','departure_time_utc':'2026-11-03T12:00:00Z','arrival_time_utc':'2026-11-03T20:00:00Z','marketing_carrier_code':'TP'}]}]}
         normalized=normalize_itinerary(raw,query_grid()[0]); self.assertEqual('NON_VALIDATABLE',evaluate_offer(normalized)['ELIGIBILITY_STATE']); self.assertTrue(any(row['FIELD']=='operating_carrier_name' and not row['REAL_PRESENT'] for row in contract_matrix([raw])))
