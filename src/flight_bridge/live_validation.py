@@ -49,22 +49,25 @@ def main() -> int:
     complete = len(completed) == len(query_grid()) and len(set(completed)) == len(query_grid())
     matrix = contract_matrix(all_itineraries)
     # Deliberately emit aggregates only: no raw responses, itineraries, booking URLs or provider IDs.
-    revalidated = {"VERIFIED_ALERT_CANDIDATE": 0, "NON_VALIDATABLE": 0}
+    revalidated = {"VERIFIED_ALERT_CANDIDATE": 0, "NON_VALIDATABLE": 0, "REASONS": {}}
+    def reject(reason: str) -> None:
+        revalidated["NON_VALIDATABLE"] += 1
+        revalidated["REASONS"][reason] = revalidated["REASONS"].get(reason, 0) + 1
     for candidate, query in candidates[:2]:
         fresh = client.search(query["origin"], query["outbound_date"], query["return_destination"])
         matches = [] if not isinstance(fresh.payload, dict) else [normalize_itinerary(x, query) for x in fresh.payload.get("itineraries", []) if isinstance(x, dict)]
         matches = [x for x in matches if exact_itinerary_match(candidate, x)]
         if len(matches) != 1 or not matches[0].get("source_offer_id"):
-            revalidated["NON_VALIDATABLE"] += 1; continue
+            reject("SECOND_SEARCH_EXACT_MATCH_NOT_UNIQUE_OR_MISSING_ID"); continue
         booked = client.booking_links(str(matches[0]["source_offer_id"]))
         data = booked.payload if isinstance(booked.payload, dict) else {}
         options = data.get("booking_options") if isinstance(data.get("booking_options"), list) else []
         itinerary = data.get("itinerary") if isinstance(data.get("itinerary"), dict) else None
         if not itinerary or not any(verify_booking_coverage(option) for option in options):
-            revalidated["NON_VALIDATABLE"] += 1; continue
+            reject("BOOKING_FULL_JOURNEY_COVERAGE_UNAVAILABLE"); continue
         refreshed = normalize_itinerary(itinerary, query)
         if not exact_itinerary_match(matches[0], refreshed) or evaluate_offer(refreshed)["ELIGIBILITY_STATE"] != "ELIGIBLE":
-            revalidated["NON_VALIDATABLE"] += 1; continue
+            reject("BOOKING_ITINERARY_CHANGED_OR_HARD_FILTER_FAILED"); continue
         revalidated["VERIFIED_ALERT_CANDIDATE"] += 1
     print(json.dumps({"LIVE_PROVIDER_VALIDATED": "UNKNOWN", "PROVIDER_QUERIES_EXPECTED": len(query_grid()),
                       "PROVIDER_QUERIES_COMPLETE": len(completed), "SEARCH_STATUS": "COMPLETE" if complete else "INCOMPLETE",
