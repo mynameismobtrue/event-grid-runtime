@@ -72,3 +72,6 @@ class IgnavClient:
 
     def search(self, origin: str, outbound_date: str, return_destination: str) -> ProviderResult:
         return self.request("POST", "/fares/search", self.build_open_jaw_query(origin, outbound_date, return_destination))
+
+    def booking_links(self, ignav_id: str) -> ProviderResult:
+        return self.request("POST", "/fares/booking-links", {"ignav_id": ignav_id})
