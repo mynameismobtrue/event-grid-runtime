@@ -7,6 +7,7 @@ import os
 
 from .core import quota_gate, query_grid
 from .ignav import IgnavClient
+from .normalize import contract_matrix, summarize_normalized
 
 
 def main() -> int:
@@ -27,11 +28,28 @@ def main() -> int:
         result = client.health_check()
         print(json.dumps({"HEALTH_STATUS": result.status, "HTTP_STATUS": result.http_status, "RAW_RESPONSE_PERSISTED": False}))
         return 0 if result.status == "COMPLETE" else 4
-    # The grid intentionally avoids printing response data. Full normalization/revalidation must be added
-    # before this branch can claim LIVE_PROVIDER_VALIDATED=true.
-    print(json.dumps({"LIVE_PROVIDER_VALIDATED": "UNKNOWN", "QUERY_GRID_EXPECTED": len(query_grid()),
-                      "ERROR_CODE": "NORMALIZATION_SUBGRAPH_NOT_YET_ENABLED"}))
-    return 5
+    completed, raw_count, normalized = [], 0, {"ELIGIBLE": 0, "HARD_REJECTED": 0, "NON_VALIDATABLE": 0}
+    all_itineraries = []
+    for query in query_grid():
+        result = client.search(query["origin"], query["outbound_date"], query["return_destination"])
+        if result.status != "COMPLETE" or not isinstance(result.payload, dict) or not isinstance(result.payload.get("itineraries"), list):
+            continue
+        completed.append(query["query_id"])
+        itineraries = [x for x in result.payload["itineraries"] if isinstance(x, dict)]
+        all_itineraries.extend(itineraries)
+        raw_count += len(itineraries)
+        normalized_counts = summarize_normalized(itineraries, query)
+        for key in normalized: normalized[key] += normalized_counts[key]
+    complete = len(completed) == len(query_grid()) and len(set(completed)) == len(query_grid())
+    matrix = contract_matrix(all_itineraries)
+    # Deliberately emit aggregates only: no raw responses, itineraries, booking URLs or provider IDs.
+    print(json.dumps({"LIVE_PROVIDER_VALIDATED": "UNKNOWN", "PROVIDER_QUERIES_EXPECTED": len(query_grid()),
+                      "PROVIDER_QUERIES_COMPLETE": len(completed), "SEARCH_STATUS": "COMPLETE" if complete else "INCOMPLETE",
+                      "RAW_OFFERS_COUNT": raw_count, "NORMALIZED_OFFERS_COUNT": sum(normalized.values()),
+                      "ELIGIBLE": normalized["ELIGIBLE"], "HARD_REJECTED": normalized["HARD_REJECTED"],
+                      "NON_VALIDATABLE": normalized["NON_VALIDATABLE"], "CONTRACT_FIELDS_OBSERVED": sum(1 for row in matrix if row["REAL_PRESENT"]),
+                      "RAW_RESPONSE_PERSISTED": False, "ALERT_DELIVERY_ENABLED": False}))
+    return 0 if complete else 6
 
 
 if __name__ == "__main__":
