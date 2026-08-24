@@ -1,0 +1,25 @@
+name: Live provider validation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: event-grid-live-validation
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Static validation
+        run: |
+          python -m compileall -q src tests
+          PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Live validation blocked until controlled runtime is configured
+        run: |
+          echo 'LIVE_PROVIDER_VALIDATED=UNKNOWN'
+          echo 'No provider request is permitted from this public repository workflow.'
