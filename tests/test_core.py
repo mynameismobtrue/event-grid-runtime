@@ -2,6 +2,7 @@ import unittest
 from flight_bridge.core import (CrossRepoWriteBlocked, classify_provider_response, dedupe_decision, evaluate_offer,
     query_grid, quota_gate, revalidation_decision, require_target_repository, sanitized_public,
     validate_completeness, verify_booking_coverage)
+from flight_bridge.ignav import IgnavClient
 
 def offer(**changes):
     segment = {"departure_airport":"GRU","arrival_airport":"LIS","departure_time_utc":"2026-10-27T12:00:00Z","arrival_time_utc":"2026-10-27T20:00:00Z","marketing_carrier_code":"TP","marketing_carrier_name":"TAP","operating_carrier_name":"TAP","flight_number":"TP88"}
@@ -41,3 +42,7 @@ class CoreTests(unittest.TestCase):
         first=offer(); self.assertEqual('VERIFIED_ALERT_CANDIDATE',revalidation_decision(first,offer(),{'leg_indexes':[0,1]})['status']); changed=offer(); changed['outbound']['segments'][0]['flight_number']='TP99'; self.assertEqual('ITINERARY_CHANGED',revalidation_decision(first,changed,{'leg_indexes':[0,1]})['failure_code']); self.assertEqual('BOOKING_OPTION_MISSING',revalidation_decision(first,offer(),{'leg_indexes':[0]})['failure_code'])
     def test_alert_dedupe_only_on_material_change(self):
         first=offer(); self.assertFalse(dedupe_decision(first,offer())['should_alert']); lower=offer(price={'amount':4399,'currency':'BRL','status':'verified'}); self.assertEqual('PRICE_DROP_100_BRL',dedupe_decision(first,lower)['reason'])
+    def test_ignav_open_jaw_is_one_commercial_request(self):
+        body=IgnavClient('x').build_open_jaw_query('GRU','2026-10-27','VCP'); self.assertEqual(2,len(body['legs'])); self.assertEqual('GRU',body['legs'][0]['origin']); self.assertEqual('VCP',body['legs'][1]['destination']); self.assertFalse(body['allow_self_transfer']); self.assertEqual(['DT'],body['airlines_exclude'])
+    def test_ignav_transport_classifies_auth_without_payload_persistence(self):
+        result=IgnavClient('x',lambda *_:(401,b'{"detail":"denied"}')).health_check(); self.assertEqual('AUTH_REQUIRED',result.status); self.assertEqual(401,result.http_status)
