@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       estimated_successful_requests:
-        description: 'Confirmed Ignav successful requests already used this month.'
+        description: 'Conservative estimate already consumed from the one-time 1,000 successful-request free allowance.'
         required: true
         type: string
       validation_mode:
@@ -28,6 +28,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Repository target guard
+        run: |
+          test "$GITHUB_REPOSITORY" = "mynameismobtrue/event-grid-runtime" || { echo CROSS_REPO_WRITE_BLOCKED; exit 1; }
       - name: Static validation
         run: |
           python -m compileall -q src tests
