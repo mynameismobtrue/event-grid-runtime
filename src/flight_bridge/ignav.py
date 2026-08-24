@@ -16,7 +16,7 @@ BASE_URL = "https://ignav.com/api"
 class ProviderResult:
     status: str
     http_status: int | None
-    payload: dict[str, Any] | None
+    payload: Any | None
 
 
 class IgnavClient:
@@ -65,8 +65,7 @@ class IgnavClient:
             payload = json.loads(raw.decode()) if raw else None
         except (UnicodeDecodeError, json.JSONDecodeError):
             payload = None
-        return ProviderResult(classify_provider_response(status if status else None, payload), status or None,
-                              payload if isinstance(payload, dict) else None)
+        return ProviderResult(classify_provider_response(status if status else None, payload), status or None, payload)
 
     def health_check(self) -> ProviderResult:
         return self.request("GET", "/airports?q=GRU&limit=1")
