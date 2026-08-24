@@ -1,0 +1,27 @@
+name: Static safety CI
+on:
+  push:
+    branches: [execution-graph-v3]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile and regression suite
+        run: |
+          python -m compileall -q src tests
+          PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Public secret pattern scan
+        run: |
+          if git grep -nE 'ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._-]{10,}|X-Api-Key:[[:space:]]*[A-Za-z0-9._-]{10,}' -- . ':!tests' ':!.gitignore'; then
+            echo 'SECRET_SCAN_FAILED'
+            exit 1
+          fi
