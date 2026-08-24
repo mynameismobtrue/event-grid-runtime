@@ -8,6 +8,7 @@ import os
 from .core import exact_itinerary_match, quota_gate, query_grid, verify_booking_coverage, evaluate_offer
 from .ignav import IgnavClient
 from .normalize import contract_matrix, summarize_normalized
+from .adversarial import verifier_fleet
 
 
 def main() -> int:
@@ -50,10 +51,17 @@ def main() -> int:
     matrix = contract_matrix(all_itineraries)
     # Deliberately emit aggregates only: no raw responses, itineraries, booking URLs or provider IDs.
     revalidated = {"VERIFIED_ALERT_CANDIDATE": 0, "NON_VALIDATABLE": 0, "REASONS": {}}
+    verifier_summary = {"CANDIDATES_EXAMINED": 0, "CRITICAL_FAILURES": {}}
     def reject(reason: str) -> None:
         revalidated["NON_VALIDATABLE"] += 1
         revalidated["REASONS"][reason] = revalidated["REASONS"].get(reason, 0) + 1
     for candidate, query in candidates[:2]:
+        initial_verifiers = verifier_fleet(candidate)
+        verifier_summary["CANDIDATES_EXAMINED"] += 1
+        for failure in initial_verifiers["CRITICAL_FAILURES"]:
+            verifier_summary["CRITICAL_FAILURES"][failure] = verifier_summary["CRITICAL_FAILURES"].get(failure, 0) + 1
+        if initial_verifiers["CRITICAL_FAILURES"]:
+            reject("ADVERSARIAL_VERIFIER_FAILED"); continue
         fresh = client.search(query["origin"], query["outbound_date"], query["return_destination"])
         matches = [] if not isinstance(fresh.payload, dict) else [normalize_itinerary(x, query) for x in fresh.payload.get("itineraries", []) if isinstance(x, dict)]
         matches = [x for x in matches if exact_itinerary_match(candidate, x)]
@@ -66,6 +74,12 @@ def main() -> int:
         if not itinerary or not any(verify_booking_coverage(option) for option in options):
             reject("BOOKING_FULL_JOURNEY_COVERAGE_UNAVAILABLE"); continue
         refreshed = normalize_itinerary(itinerary, query)
+        booking_option = next((option for option in options if verify_booking_coverage(option)), None)
+        final_verifiers = verifier_fleet(refreshed, booking_option=booking_option)
+        for failure in final_verifiers["CRITICAL_FAILURES"]:
+            verifier_summary["CRITICAL_FAILURES"][failure] = verifier_summary["CRITICAL_FAILURES"].get(failure, 0) + 1
+        if final_verifiers["CRITICAL_FAILURES"]:
+            reject("ADVERSARIAL_VERIFIER_FAILED"); continue
         if not exact_itinerary_match(matches[0], refreshed) or evaluate_offer(refreshed)["ELIGIBILITY_STATE"] != "ELIGIBLE":
             reject("BOOKING_ITINERARY_CHANGED_OR_HARD_FILTER_FAILED"); continue
         revalidated["VERIFIED_ALERT_CANDIDATE"] += 1
@@ -75,6 +89,7 @@ def main() -> int:
                       "ELIGIBLE": normalized["ELIGIBLE"], "HARD_REJECTED": normalized["HARD_REJECTED"],
                       "NON_VALIDATABLE": normalized["NON_VALIDATABLE"], "CONTRACT_MATRIX": matrix,
                       "CONTRACT_FIELDS_OBSERVED": sum(1 for row in matrix if row["REAL_PRESENT"]), "REVALIDATION": revalidated,
+                      "ADVERSARIAL_VERIFIERS": verifier_summary,
                       "RAW_RESPONSE_PERSISTED": False, "ALERT_DELIVERY_ENABLED": False}))
     return 0 if complete else 6
 
