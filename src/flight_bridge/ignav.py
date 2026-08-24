@@ -54,24 +54,44 @@ class IgnavClient:
                 return response.status, response.read()
         except HTTPError as error:
             return error.code, error.read()
-        except URLError:
+        except (URLError, TimeoutError):
             return 0, b""
 
     def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> ProviderResult:
         if not self.configured:
             return ProviderResult("AUTH_REQUIRED", None, None)
-        status, raw = self._transport(method, path, body)
+        try:
+            status, raw = self._transport(method, path, body)
+        except TimeoutError:
+            return ProviderResult("PROVIDER_NETWORK_ERROR", None, None)
         try:
             payload = json.loads(raw.decode()) if raw else None
         except (UnicodeDecodeError, json.JSONDecodeError):
             payload = None
         return ProviderResult(classify_provider_response(status if status else None, payload), status or None, payload)
 
+    @staticmethod
+    def _schema_invalid(result: ProviderResult) -> ProviderResult:
+        return ProviderResult("SCHEMA_INVALID", result.http_status, result.payload)
+
     def health_check(self) -> ProviderResult:
-        return self.request("GET", "/airports?q=GRU&limit=1")
+        result = self.request("GET", "/airports?q=GRU&limit=1")
+        if result.status == "COMPLETE" and not isinstance(result.payload, list):
+            return self._schema_invalid(result)
+        return result
 
     def search(self, origin: str, outbound_date: str, return_destination: str) -> ProviderResult:
-        return self.request("POST", "/fares/search", self.build_open_jaw_query(origin, outbound_date, return_destination))
+        result = self.request("POST", "/fares/search", self.build_open_jaw_query(origin, outbound_date, return_destination))
+        if result.status == "COMPLETE":
+            payload = result.payload
+            if not isinstance(payload, dict) or not isinstance(payload.get("legs"), list) or not isinstance(payload.get("itineraries"), list):
+                return self._schema_invalid(result)
+        return result
 
     def booking_links(self, ignav_id: str) -> ProviderResult:
-        return self.request("POST", "/fares/booking-links", {"ignav_id": ignav_id})
+        result = self.request("POST", "/fares/booking-links", {"ignav_id": ignav_id})
+        if result.status == "COMPLETE":
+            payload = result.payload
+            if not isinstance(payload, dict) or not isinstance(payload.get("itinerary"), dict) or not isinstance(payload.get("booking_options"), list):
+                return self._schema_invalid(result)
+        return result
