@@ -5,6 +5,7 @@ from flight_bridge.core import (CrossRepoWriteBlocked, PRODUCTION_GATE_INPUTS, c
     validate_completeness, verify_booking_coverage)
 from flight_bridge.ignav import IgnavClient
 from flight_bridge.normalize import contract_matrix, normalize_itinerary
+from flight_bridge.adversarial import VERIFIER_IDS, verifier_fleet
 
 def offer(**changes):
     segment = {"departure_airport":"GRU","arrival_airport":"LIS","departure_time_utc":"2026-10-27T12:00:00Z","arrival_time_utc":"2026-10-27T20:00:00Z","marketing_carrier_code":"TP","marketing_carrier_name":"TAP","operating_carrier_name":"TAP","flight_number":"TP88"}
@@ -63,3 +64,7 @@ class CoreTests(unittest.TestCase):
         normalized=normalize_itinerary(raw,query_grid()[0]); self.assertEqual('NON_VALIDATABLE',evaluate_offer(normalized)['ELIGIBILITY_STATE']); self.assertTrue(any(row['FIELD']=='operating_carrier_name' and not row['REAL_PRESENT'] for row in contract_matrix([raw])))
     def test_contract_uses_documented_leg_carrier_display_name(self):
         raw={'legs':[{'carrier':'TAP','segments':[]}]} ; row=next(x for x in contract_matrix([raw]) if x['FIELD']=='marketing_carrier_name'); self.assertEqual('LEG_CARRIER_DISPLAY',row['OPENAPI_EXPECTED']); self.assertTrue(row['REAL_PRESENT'])
+    def test_adversarial_fleet_refutes_taag_and_split_booking(self):
+        row=offer(); row['outbound']['segments'][0]['operating_carrier_name']='TAAG Angola Airlines'; report=verifier_fleet(row,booking_option={'leg_indexes':[0]}); self.assertEqual(set(VERIFIER_IDS),set(report['VERIFIERS'])); self.assertEqual('PASS',report['VERIFIERS']['V1_TAAG_FALSE_NEGATIVE']); self.assertIn('V9_BOOKING_COHERENCE',report['CRITICAL_FAILURES'])
+    def test_adversarial_fleet_rejects_unsanitized_public_candidate(self):
+        report=verifier_fleet(offer(),public_candidate={'Authorization':'secret'}); self.assertIn('V12_PRIVACY_SECRET',report['CRITICAL_FAILURES'])
