@@ -8,8 +8,8 @@ never contain live itinerary data, booking links, provider sessions or secrets.
 
 ## State
 
-`PRE_PRODUCTION`. The live workflow is manual-only and cannot run without a
-GitHub Actions secret that is intentionally not stored here.
+`PRE_PRODUCTION`. The live workflow is manual-only. It consumes no provider
+quota unless a human supplies the confirmed request count at dispatch time.
 
 ## Local verification
 
