@@ -176,7 +176,9 @@ def classify_provider_response(http_status: int | None, payload: Any = None) -> 
     if http_status is None:
         return "PROVIDER_NETWORK_ERROR"
     if http_status == 200:
-        return "COMPLETE" if isinstance(payload, dict) else "SCHEMA_INVALID"
+        # Transport validation accepts either JSON object or list. Endpoint-specific
+        # schema validation happens after classification (airport health is a list).
+        return "COMPLETE" if isinstance(payload, (dict, list)) else "SCHEMA_INVALID"
     if http_status == 400:
         return "INVALID_REQUEST"
     if http_status == 401:
