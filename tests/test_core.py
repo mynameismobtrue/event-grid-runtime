@@ -46,3 +46,5 @@ class CoreTests(unittest.TestCase):
         body=IgnavClient('x').build_open_jaw_query('GRU','2026-10-27','VCP'); self.assertEqual(2,len(body['legs'])); self.assertEqual('GRU',body['legs'][0]['origin']); self.assertEqual('VCP',body['legs'][1]['destination']); self.assertFalse(body['allow_self_transfer']); self.assertEqual(['DT'],body['airlines_exclude'])
     def test_ignav_transport_classifies_auth_without_payload_persistence(self):
         result=IgnavClient('x',lambda *_:(401,b'{"detail":"denied"}')).health_check(); self.assertEqual('AUTH_REQUIRED',result.status); self.assertEqual(401,result.http_status)
+    def test_ignav_health_accepts_documented_airport_list(self):
+        result=IgnavClient('x',lambda *_:(200,b'[{"iata":"GRU"}]')).health_check(); self.assertEqual('COMPLETE',result.status); self.assertEqual(200,result.http_status)
