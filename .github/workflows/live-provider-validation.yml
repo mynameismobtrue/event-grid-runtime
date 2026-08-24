@@ -1,6 +1,16 @@
 name: Live provider validation
 on:
   workflow_dispatch:
+    inputs:
+      estimated_successful_requests:
+        description: 'Confirmed Ignav successful requests already used this month.'
+        required: true
+        type: string
+      health_only:
+        description: 'Run one diagnostic health check only. Keep enabled for the first run.'
+        required: true
+        default: true
+        type: boolean
 permissions:
   contents: read
 concurrency:
@@ -19,7 +29,10 @@ jobs:
         run: |
           python -m compileall -q src tests
           PYTHONPATH=src python -m unittest discover -s tests -v
-      - name: Live validation blocked until controlled runtime is configured
+      - name: Manual safe provider preflight
+        env:
+          IGNAV_API_KEY: ${{ secrets.IGNAV_API_KEY }}
         run: |
-          echo 'LIVE_PROVIDER_VALIDATED=UNKNOWN'
-          echo 'No provider request is permitted from this public repository workflow.'
+          PYTHONPATH=src python -m flight_bridge.live_validation \
+            --estimated-successful-requests "${{ inputs.estimated_successful_requests }}" \
+            ${{ inputs.health_only && '--health-only' || '' }}
