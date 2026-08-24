@@ -6,11 +6,14 @@ on:
         description: 'Confirmed Ignav successful requests already used this month.'
         required: true
         type: string
-      health_only:
-        description: 'Run one diagnostic health check only. Use false only for the controlled 12-query pre-production cycle.'
+      validation_mode:
+        description: 'Choose the exact validation mode.'
         required: true
-        default: true
-        type: boolean
+        default: health_only
+        type: choice
+        options:
+          - health_only
+          - full_12_query_preproduction
 permissions:
   contents: read
 concurrency:
@@ -35,4 +38,4 @@ jobs:
         run: |
           PYTHONPATH=src python -m flight_bridge.live_validation \
             --estimated-successful-requests "${{ inputs.estimated_successful_requests }}" \
-            ${{ inputs.health_only && '--health-only' || '' }}
+            ${{ inputs.validation_mode == 'health_only' && '--health-only' || '' }}
