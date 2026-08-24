@@ -10,9 +10,16 @@ CONTRACT_FIELDS = (
     "ignav_id", "price.amount", "price.currency", "price.status", "requires_self_transfer", "legs",
     "segments", "marketing_carrier_code", "marketing_carrier_name", "operating_carrier_code",
     "operating_carrier_name", "flight_number", "departure_airport", "arrival_airport",
-    "departure_time_local", "arrival_time_local", "departure_time_utc", "arrival_time_utc",
-    "duration_minutes", "aircraft", "bags",
+    "departure_time_local", "arrival_time_local", "departure_timezone", "arrival_timezone",
+    "departure_time_utc", "arrival_time_utc", "duration_minutes", "aircraft", "bags",
 )
+
+SEGMENT_FIELDS = {
+    "segments", "marketing_carrier_code", "marketing_carrier_name", "operating_carrier_code",
+    "operating_carrier_name", "flight_number", "departure_airport", "arrival_airport",
+    "departure_time_local", "arrival_time_local", "departure_timezone", "arrival_timezone",
+    "departure_time_utc", "arrival_time_utc", "duration_minutes", "aircraft",
+}
 
 
 def _value(record: dict[str, Any], dotted: str) -> Any:
@@ -29,7 +36,7 @@ def contract_matrix(itineraries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for field in CONTRACT_FIELDS:
         values = []
         for itinerary in itineraries:
-            if field in {"segments", "marketing_carrier_code", "marketing_carrier_name", "operating_carrier_code", "operating_carrier_name", "flight_number", "departure_airport", "arrival_airport", "departure_time_local", "arrival_time_local", "departure_time_utc", "arrival_time_utc", "duration_minutes", "aircraft"}:
+            if field in SEGMENT_FIELDS:
                 for leg in itinerary.get("legs", []) if isinstance(itinerary.get("legs"), list) else []:
                     if field == "marketing_carrier_name":
                         values.append(leg.get("carrier") if isinstance(leg, dict) else None)
@@ -48,6 +55,23 @@ def contract_matrix(itineraries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
+def _derive_airport_change(directions: list[dict[str, Any]]) -> bool | None:
+    observed_connection = False
+    for direction in directions:
+        segments = direction.get("segments") if isinstance(direction, dict) else None
+        if not isinstance(segments, list) or not segments:
+            return None
+        for left, right in zip(segments, segments[1:]):
+            observed_connection = True
+            arrival = left.get("arrival_airport")
+            departure = right.get("departure_airport")
+            if not arrival or not departure:
+                return None
+            if str(arrival).upper() != str(departure).upper():
+                return True
+    return False if observed_connection or directions else None
+
+
 def normalize_itinerary(itinerary: dict[str, Any], query: dict[str, str]) -> dict[str, Any]:
     legs = itinerary.get("legs") if isinstance(itinerary.get("legs"), list) else []
     directions = []
@@ -57,13 +81,16 @@ def normalize_itinerary(itinerary: dict[str, Any], query: dict[str, str]) -> dic
             segments.append({
                 "departure_airport": source.get("departure_airport"), "arrival_airport": source.get("arrival_airport"),
                 "departure_time_local": source.get("departure_time_local"), "arrival_time_local": source.get("arrival_time_local"),
+                "departure_timezone": source.get("departure_timezone"), "arrival_timezone": source.get("arrival_timezone"),
                 "departure_time_utc": source.get("departure_time_utc"), "arrival_time_utc": source.get("arrival_time_utc"),
                 "marketing_carrier_code": source.get("marketing_carrier_code"),
                 "marketing_carrier_name": leg.get("carrier"),
                 "operating_carrier_code": source.get("operating_carrier_code"),
                 "operating_carrier_name": source.get("operating_carrier_name"), "flight_number": source.get("flight_number"),
                 "aircraft": source.get("aircraft"), "duration_minutes": source.get("duration_minutes"),
-                # Provider may furnish auditable country metadata; absent data stays UNKNOWN.
+                # Geographic connection evidence uses documented departure timezone. An undocumented country
+                # field, if a provider happens to send one, can only add a rejection signal and is never required.
+                "connection_timezone": source.get("departure_timezone"),
                 "connection_country_code": source.get("departure_country_code"),
             })
         directions.append({"origin": segments[0].get("departure_airport") if segments else None,
@@ -71,11 +98,24 @@ def normalize_itinerary(itinerary: dict[str, Any], query: dict[str, str]) -> dic
                            "duration_minutes": leg.get("duration_minutes") if isinstance(leg, dict) else None,
                            "segments": segments})
     price = itinerary.get("price") if isinstance(itinerary.get("price"), dict) else {}
+    requires_self_transfer = itinerary.get("requires_self_transfer")
+    derived_airport_change = _derive_airport_change(directions)
+    raw_airport_change = itinerary.get("airport_change")
+    if raw_airport_change is True or derived_airport_change is True:
+        airport_change: bool | None = True
+    elif raw_airport_change is False or derived_airport_change is False:
+        airport_change = False
+    else:
+        airport_change = None
+    protected_self_transfer = itinerary.get("protected_self_transfer")
+    if requires_self_transfer is False and protected_self_transfer is None:
+        # No self-transfer means there is no protected/unprotected self-transfer condition to validate.
+        protected_self_transfer = False
     return {"source_offer_id": itinerary.get("ignav_id"), "outbound": directions[0] if len(directions) > 0 else None,
             "inbound": directions[1] if len(directions) > 1 else None, "cabin": itinerary.get("cabin_class"),
-            "requires_self_transfer": itinerary.get("requires_self_transfer"),
-            "protected_self_transfer": itinerary.get("protected_self_transfer"),
-            "airport_change": itinerary.get("airport_change"), "separate_tickets": itinerary.get("separate_tickets"),
+            "requires_self_transfer": requires_self_transfer,
+            "protected_self_transfer": protected_self_transfer,
+            "airport_change": airport_change, "separate_tickets": itinerary.get("separate_tickets"),
             "multiple_booking_required": itinerary.get("multiple_booking_required"),
             "price": {"amount": price.get("amount"), "currency": price.get("currency"), "status": price.get("status")},
             "query_id": query["query_id"]}
@@ -84,6 +124,6 @@ def normalize_itinerary(itinerary: dict[str, Any], query: dict[str, str]) -> dic
 def summarize_normalized(itineraries: list[dict[str, Any]], query: dict[str, str]) -> Counter:
     counts: Counter = Counter()
     for raw in itineraries:
-        decision = evaluate_offer(normalize_itinerary(raw, query))
+        decision = evaluate_offer(normalize_itinerary(raw, query), require_booking_coherence=False)
         counts[decision["ELIGIBILITY_STATE"]] += 1
     return counts
