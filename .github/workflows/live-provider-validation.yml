@@ -9,7 +9,7 @@ on:
       validation_mode:
         description: 'Choose the exact validation mode.'
         required: true
-        default: health_only
+        default: full_12_query_preproduction
         type: choice
         options:
           - health_only
