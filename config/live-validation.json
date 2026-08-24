@@ -1,0 +1,7 @@
+{
+  "state": "PRE_PRODUCTION",
+  "paid_usage_authorized": false,
+  "alert_delivery_enabled": false,
+  "workflow_dispatch_only": true,
+  "approved_code_sha": "__SET_AFTER_CODE_VALIDATION__"
+}
