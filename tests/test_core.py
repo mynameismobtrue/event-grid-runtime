@@ -3,6 +3,7 @@ from flight_bridge.core import (CrossRepoWriteBlocked, classify_provider_respons
     query_grid, quota_gate, revalidation_decision, require_target_repository, sanitized_public,
     validate_completeness, verify_booking_coverage)
 from flight_bridge.ignav import IgnavClient
+from flight_bridge.normalize import contract_matrix, normalize_itinerary
 
 def offer(**changes):
     segment = {"departure_airport":"GRU","arrival_airport":"LIS","departure_time_utc":"2026-10-27T12:00:00Z","arrival_time_utc":"2026-10-27T20:00:00Z","marketing_carrier_code":"TP","marketing_carrier_name":"TAP","operating_carrier_name":"TAP","flight_number":"TP88"}
@@ -48,3 +49,6 @@ class CoreTests(unittest.TestCase):
         result=IgnavClient('x',lambda *_:(401,b'{"detail":"denied"}')).health_check(); self.assertEqual('AUTH_REQUIRED',result.status); self.assertEqual(401,result.http_status)
     def test_ignav_health_accepts_documented_airport_list(self):
         result=IgnavClient('x',lambda *_:(200,b'[{"iata":"GRU"}]')).health_check(); self.assertEqual('COMPLETE',result.status); self.assertEqual(200,result.http_status)
+    def test_normalization_keeps_operating_carrier_missing_fail_closed(self):
+        raw={'ignav_id':'x','cabin_class':'economy','requires_self_transfer':False,'price':{'amount':4400,'currency':'BRL','status':'verified'},'legs':[{'carrier':'TAP','duration_minutes':600,'segments':[{'departure_airport':'GRU','arrival_airport':'LIS','departure_time_utc':'2026-10-27T12:00:00Z','arrival_time_utc':'2026-10-27T20:00:00Z','marketing_carrier_code':'TP'}]},{'carrier':'TAP','duration_minutes':600,'segments':[{'departure_airport':'LIS','arrival_airport':'GRU','departure_time_utc':'2026-11-03T12:00:00Z','arrival_time_utc':'2026-11-03T20:00:00Z','marketing_carrier_code':'TP'}]}]}
+        normalized=normalize_itinerary(raw,query_grid()[0]); self.assertEqual('NON_VALIDATABLE',evaluate_offer(normalized)['ELIGIBILITY_STATE']); self.assertTrue(any(row['FIELD']=='operating_carrier_name' and not row['REAL_PRESENT'] for row in contract_matrix([raw])))
