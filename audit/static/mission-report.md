@@ -12,7 +12,7 @@
 | GitHub remote write | Available conditionally | File/branch/PR tools exist, guarded in code |
 | GitHub create repository | Completed by human | `mynameismobtrue/event-grid-runtime` is now public |
 | GitHub Actions secret write | Completed by human | `IGNAV_API_KEY` was added without being shared in chat |
-| CI trigger / workflow dispatch | Completed by human | Manual health run `32679355218` succeeded |
+| CI trigger / workflow dispatch | Completed by human | Manual full-grid run `32680391123` succeeded |
 
 ## Legacy read-only evidence
 
@@ -25,13 +25,26 @@
 
 ## New implementation
 
-- Local safe checkout: `execution-graph-v3` at `257096f`.
+- Local safe checkout: `execution-graph-v3` at `a6ff7de`.
 - Remote target is public, verified and contains the 11-file V3.3 baseline on `main`; `execution-graph-v3` was created from that baseline.
 - The remote baseline is a selective clean-room V3 implementation, not a claimed byte-for-byte legacy export.
 - `LEGACY_MODIFIED=false`.
 
+## Sanitized live evidence: run `32680391123`
+
+- Executed remote SHA: `d4c112058c6b8f0178939463efaa622dee8568c0` on `execution-graph-v3`.
+- CI: Python compile PASS; 21/21 regression tests PASS.
+- Provider: `PROVIDER_QUERIES_EXPECTED=12`, `PROVIDER_QUERIES_COMPLETE=12`, `SEARCH_STATUS=COMPLETE`.
+- In-memory processing: 37 raw provider offers, 37 normalized offers, 2 eligible, 32 hard rejected, 3 non-validatable.
+- Contract matrix: 20/21 designated fields were observed. `operating_carrier_code` was absent for 95/95 observed segments and remains untrusted/unused. `operating_carrier_name` was present for 95/95 segments and is the active fail-closed carrier evidence.
+- Revalidation: both eligible candidates were rejected as `NON_VALIDATABLE` because `BOOKING_FULL_JOURNEY_COVERAGE_UNAVAILABLE`; zero alert candidates were produced.
+- `RAW_RESPONSE_PERSISTED=false`; `ALERT_DELIVERY_ENABLED=false`.
+
 ## Production blockers
 
-1. `FULL_QUERY_GRID`: the normalized 12-query fetch pipeline is not yet enabled.
-2. `REAL_SCHEMA_AUDIT` / operating-carrier policy / revalidation: require a complete sanitized live cycle.
-3. `PRODUCTION_GATE`: live-dependent inputs remain UNKNOWN; schedule and alerts are deliberately disabled.
+1. `OPERATING_CARRIER_SEMANTIC_POLICY`: provider documentation does not establish a trusted operating-carrier code and the live-name behavior must receive adversarial semantic evidence.
+2. `AFRICA_METADATA_LIVE_EVIDENCE`: the code rejects unknown connection geography, but the provider did not supply enough live geographic evidence to prove the metadata route end to end.
+3. `PERSISTENT_LIVE_STATE`: no safe non-public state store is available; public Git must not receive live itineraries, histories or booking data.
+4. `REVALIDATION_REAL_ALERT_CANDIDATE`: revalidation was exercised only through fail-closed rejection. No full-journey booking coverage was confirmed.
+5. `HUMAN_AUDIT`: required before any production gate decision.
+6. `PRODUCTION_GATE`: the preceding gates are FALSE or UNKNOWN. Schedule and alerts remain disabled.
