@@ -30,15 +30,21 @@
 - The remote baseline is a selective clean-room V3 implementation, not a claimed byte-for-byte legacy export.
 - `LEGACY_MODIFIED=false`.
 
-## Sanitized live evidence: run `32680391123`
+## Sanitized live evidence: run `32680617116`
 
-- Executed remote SHA: `d4c112058c6b8f0178939463efaa622dee8568c0` on `execution-graph-v3`.
-- CI: Python compile PASS; 21/21 regression tests PASS.
+- Executed remote SHA: `d80a378c31b891db56dea354da3ac697d6861bc1` on `execution-graph-v3`.
+- CI: Python compile PASS; 23/23 regression tests PASS.
 - Provider: `PROVIDER_QUERIES_EXPECTED=12`, `PROVIDER_QUERIES_COMPLETE=12`, `SEARCH_STATUS=COMPLETE`.
-- In-memory processing: 37 raw provider offers, 37 normalized offers, 2 eligible, 32 hard rejected, 3 non-validatable.
+- In-memory processing: 37 raw provider offers, 37 normalized offers, 0 eligible, 32 hard rejected, 5 non-validatable.
 - Contract matrix: 20/21 designated fields were observed. `operating_carrier_code` was absent for 95/95 observed segments and remains untrusted/unused. `operating_carrier_name` was present for 95/95 segments and is the active fail-closed carrier evidence.
-- Revalidation: both eligible candidates were rejected as `NON_VALIDATABLE` because `BOOKING_FULL_JOURNEY_COVERAGE_UNAVAILABLE`; zero alert candidates were produced.
+- The hardened journey-protection rule invalidated five offers whose critical journey safeguards were not all explicitly present. No candidate entered revalidation in this run. The prior sanitized run `32680391123` exercised the booking fail-closed path and rejected two candidates as `BOOKING_FULL_JOURNEY_COVERAGE_UNAVAILABLE`.
 - `RAW_RESPONSE_PERSISTED=false`; `ALERT_DELIVERY_ENABLED=false`.
+
+## Calculated Production Gate
+
+- `PRODUCTION_GATE=false`; `STATE=PRE_PRODUCTION`.
+- `FALSE_GATES=[]`.
+- `UNKNOWN_GATES=[LIVE_PROVIDER_VALIDATED, NO_CRITICAL_SCHEMA_DRIFT, OPERATING_CARRIER_POLICY_SAFE, TAAG_DEFENSE_CONFIRMED, AFRICA_DEFENSE_CONFIRMED, HUMAN_AUDIT_PASS]`.
 
 ## Production blockers
 
