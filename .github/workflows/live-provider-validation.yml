@@ -7,7 +7,7 @@ on:
         required: true
         type: string
       health_only:
-        description: 'Run one diagnostic health check only. Keep enabled for the first run.'
+        description: 'Run one diagnostic health check only. Use false only for the controlled 12-query pre-production cycle.'
         required: true
         default: true
         type: boolean
