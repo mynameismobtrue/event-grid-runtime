@@ -17,6 +17,15 @@ AFRICA_COUNTRY_CODES = {
     "SC", "SL", "SO", "ZA", "SS", "SD", "TZ", "TG", "TN", "UG", "ZM", "ZW"
 }
 TAAG_CODES = {"DT", "TAAG", "TAAG ANGOLA AIRLINES"}
+PRODUCTION_GATE_INPUTS = (
+    "CODE_VALIDATED", "NEW_REPO_CONFIRMED", "SECRET_STORAGE_SAFE", "LIVE_PROVIDER_VALIDATED",
+    "12_OF_12_COMPLETE", "REAL_SCHEMA_AUDITED", "NO_CRITICAL_SCHEMA_DRIFT",
+    "OPERATING_CARRIER_POLICY_SAFE", "TAAG_DEFENSE_CONFIRMED", "AFRICA_DEFENSE_CONFIRMED",
+    "OPEN_JAW_CONFIRMED", "SELF_TRANSFER_DEFENSE_CONFIRMED", "PRICE_STATUS_CONFIRMED",
+    "BOOKING_LINKS_AUDITED", "REVALIDATION_POLICY_SAFE", "NO_SECRET_SERIALIZATION",
+    "QUOTA_CONTROL_VALID", "DEDUPE_VALID", "CHECKPOINT_VALID", "HUMAN_AUDIT_PASS",
+    "LEGACY_REPOSITORY_UNCHANGED",
+)
 
 
 class CrossRepoWriteBlocked(RuntimeError):
@@ -33,6 +42,16 @@ def tri_and(*values: bool | None) -> bool | None:
     if any(value is False for value in values):
         return False
     return None if any(value is None for value in values) else True
+
+
+def production_gate(inputs: dict[str, bool | None]) -> dict[str, Any]:
+    """A critical FALSE or UNKNOWN always keeps the system in PRE_PRODUCTION."""
+    missing = [name for name in PRODUCTION_GATE_INPUTS if name not in inputs]
+    false = [name for name in PRODUCTION_GATE_INPUTS if inputs.get(name) is False]
+    unknown = missing + [name for name in PRODUCTION_GATE_INPUTS if name in inputs and inputs[name] is None]
+    allowed = not false and not unknown
+    return {"PRODUCTION_GATE": allowed, "STATE": "PRODUCTION" if allowed else "PRE_PRODUCTION",
+            "FALSE_GATES": false, "UNKNOWN_GATES": unknown}
 
 
 def decimal_brl(value: Any) -> Decimal | None:
@@ -130,8 +149,11 @@ def evaluate_offer(offer: dict[str, Any]) -> dict[str, Any]:
     if _text(outbound.get("origin")) not in {"GRU", "VCP"} or _text(outbound.get("destination")) != "LIS": reasons.append("ROUTE_OUTBOUND")
     if _text(inbound.get("origin")) != "LIS" or _text(inbound.get("destination")) not in {"GRU", "VCP"}: reasons.append("ROUTE_INBOUND")
     if offer.get("cabin") != "economy": reasons.append("CABIN")
-    if any(offer.get(k) is True for k in ("requires_self_transfer", "protected_self_transfer", "airport_change", "separate_tickets", "multiple_booking_required")):
+    journey_protection_fields = ("requires_self_transfer", "protected_self_transfer", "airport_change", "separate_tickets", "multiple_booking_required")
+    if any(offer.get(k) is True for k in journey_protection_fields):
         reasons.append("UNPROTECTED_JOURNEY")
+    if any(not isinstance(offer.get(k), bool) for k in journey_protection_fields):
+        unknown.append("JOURNEY_PROTECTION_UNKNOWN")
     for direction in (outbound, inbound):
         segments = _segments(direction)
         if not segments:
