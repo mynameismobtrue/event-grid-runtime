@@ -1,0 +1,10 @@
+name: Flight monitor
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preproduction_only:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'STATE=PRE_PRODUCTION; schedule disabled by Production Gate.'
