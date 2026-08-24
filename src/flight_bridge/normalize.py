@@ -31,13 +31,16 @@ def contract_matrix(itineraries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for itinerary in itineraries:
             if field in {"segments", "marketing_carrier_code", "marketing_carrier_name", "operating_carrier_code", "operating_carrier_name", "flight_number", "departure_airport", "arrival_airport", "departure_time_local", "arrival_time_local", "departure_time_utc", "arrival_time_utc", "duration_minutes", "aircraft"}:
                 for leg in itinerary.get("legs", []) if isinstance(itinerary.get("legs"), list) else []:
+                    if field == "marketing_carrier_name":
+                        values.append(leg.get("carrier") if isinstance(leg, dict) else None)
+                        continue
                     for segment in leg.get("segments", []) if isinstance(leg, dict) and isinstance(leg.get("segments"), list) else []:
                         values.append(_value(segment, field) if field != "segments" else segment)
             else:
                 values.append(_value(itinerary, field))
         present = [v for v in values if v is not None]
         types = sorted({type(v).__name__ for v in present})
-        rows.append({"FIELD": field, "OPENAPI_EXPECTED": "UNDOCUMENTED" if field == "operating_carrier_code" else "DOCUMENTED",
+        rows.append({"FIELD": field, "OPENAPI_EXPECTED": "UNDOCUMENTED" if field == "operating_carrier_code" else ("LEG_CARRIER_DISPLAY" if field == "marketing_carrier_name" else "DOCUMENTED"),
                      "REAL_PRESENT": bool(present), "REAL_TYPE": ",".join(types) or None,
                      "NULL_COUNT": len(values) - len(present), "NULL_RATE": (len(values) - len(present)) / len(values) if values else 1.0,
                      "ADAPTER_EXPECTATION": "FAIL_CLOSED_IF_CRITICAL", "COMPATIBILITY": "OBSERVED" if present else "MISSING",
