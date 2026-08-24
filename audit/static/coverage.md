@@ -12,6 +12,7 @@
 | Public-data and secret controls | sanitizer, secret scan, public layout | Yes | Yes | PASS: run `32680617116` persisted no raw response or alert data |
 | Provider contract and sanitized live schema | `contract_matrix`, normalizer | Yes | Partial | UNKNOWN: operating carrier code undocumented; geography metadata needs more evidence |
 | Booking revalidation | `booking_links`, exact itinerary and coverage checks | Yes | Yes | PASS for fail-closed path; no positive full-journey coverage observed |
+| Adversarial verifier fleet | `verifier_fleet` V1–V12 | Yes | Yes | PASS: TAAG, booking split and privacy refutation tests |
 | CI and manual pre-production workflow | `live-provider-validation.yml` | Yes | Yes | PASS: run `32680617116`, 23 tests and 12/12 query grid |
 | PR, merge, schedule and ChatGPT monitor | Production Gate | Scaffolded | No | BLOCKED: production inputs are not all TRUE |
 
